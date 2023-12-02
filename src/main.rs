@@ -5,6 +5,7 @@ use colored::Colorize;
 use std::time::Instant;
 use indicatif::{ProgressBar, ProgressStyle};
 
+#[derive(Debug, Clone)]
 struct FileData {
     path: String,
     size: i64,
@@ -123,6 +124,7 @@ fn main() {
 
     // Create an array to store biggest files
     let mut biggest_files: Vec<FileData> = Vec::with_capacity(fatass_count as usize);
+    let mut reordered = false;
     for entry in WalkDir::new(&search_path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -134,15 +136,21 @@ fn main() {
             entry.metadata().map(|m| m.len()).unwrap_or(0) as i64
         );
 
-        // Insert file_data into the vector if it's larger than the smallest file in the vector
         if biggest_files.len() < fatass_count as usize {
             biggest_files.push(file_data);
-        } else if file_data.size > biggest_files.first().unwrap().size {
-            biggest_files.pop();
-            biggest_files.push(file_data);
+        } else if biggest_files.len() == fatass_count as usize && reordered == false {
+            biggest_files.sort_by(|a, b| b.size.cmp(&a.size));
+            reordered = true;
+        } else  {
+            if let Some(min_index) = biggest_files
+                .iter()
+                .position(|file| file_data.size > file.size)
+            {
+                biggest_files.insert(min_index, file_data);
+                biggest_files.pop();
+            }
         }
 
-        biggest_files.sort_by(|a, b| b.size.cmp(&a.size));
         progress_bar.inc(1);
     }
     progress_bar.finish();
