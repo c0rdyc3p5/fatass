@@ -58,6 +58,23 @@ fn print_help() {
     println!("  If the provided path or count value contains spaces, enclose it in quotes.");
 }
 
+fn reverse_binary_search_insert_index(arr: &[FileData], target_size: &i64) -> usize {
+    let mut low = 0;
+    let mut high = arr.len();
+
+    while low != high {
+        let mid = (low + high) / 2;
+
+        match arr[mid].size.cmp(target_size) {
+            std::cmp::Ordering::Equal => return mid,
+            std::cmp::Ordering::Less => high = mid,
+            std::cmp::Ordering::Greater => low = mid + 1,
+        }
+    }
+
+    low
+}
+
 // Get args from command line
 fn main() {
     let runtime_start = Instant::now();
@@ -142,13 +159,9 @@ fn main() {
             biggest_files.sort_by(|a, b| b.size.cmp(&a.size));
             reordered = true;
         } else  {
-            if let Some(min_index) = biggest_files
-                .iter()
-                .position(|file| file_data.size > file.size)
-            {
-                biggest_files.insert(min_index, file_data);
-                biggest_files.pop();
-            }
+            let index = reverse_binary_search_insert_index(&biggest_files, &file_data.size);
+            biggest_files.insert(index, file_data);
+            biggest_files.pop();
         }
 
         progress_bar.inc(1);
