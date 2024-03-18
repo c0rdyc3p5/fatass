@@ -18,7 +18,6 @@ impl FileData {
 
     fn get_str_size(&self) -> String {
         let mut size = self.size as f64;
-        let mut count = 0;
         let mut suffix = String::from("Bytes");
 
         let units: [&str; 8] = ["KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -28,7 +27,6 @@ impl FileData {
                 break;
             }
             size /= 1024.0;
-            count += 1;
             suffix = unit.to_string();
         }
 
@@ -58,21 +56,26 @@ fn print_help() {
     println!("  If the provided path or count value contains spaces, enclose it in quotes.");
 }
 
-fn reverse_binary_search_insert_index(arr: &[FileData], target_size: &i64) -> usize {
+fn reverse_binary_search_insert_index(arr: &[FileData], target_size: &i64) -> Option<usize> {
     let mut low = 0;
     let mut high = arr.len();
+
+    // Check if smaller than the smaller file, if so return none to skip
+    if target_size < &arr[arr.len() - 1].size {
+        return None;
+    }
 
     while low != high {
         let mid = (low + high) / 2;
 
         match arr[mid].size.cmp(target_size) {
-            std::cmp::Ordering::Equal => return mid,
+            std::cmp::Ordering::Equal => return Some(mid),
             std::cmp::Ordering::Less => high = mid,
             std::cmp::Ordering::Greater => low = mid + 1,
         }
     }
 
-    low
+    Some(low)
 }
 
 // Get args from command line
@@ -80,7 +83,7 @@ fn main() {
     let runtime_start = Instant::now();
     let args: Vec<String> = env::args().collect();
     let mut search_path: String = String::from("./");
-    let mut fatass_count: i16 = 100;
+    let mut fatass_count: usize = 100;
 
     // Check if help was asked
     if let Some(_index) = args.iter().position(|arg| arg == "--help" || arg == "-h") {
@@ -111,7 +114,7 @@ fn main() {
     if let Some(index) = args.iter().position(|arg| arg == "--count" || arg == "-c") {
         // Check if there is a value after "--count"
         if let Some(count_value) = args.get(index + 1) {
-            if let Ok(parsed_count) = count_value.parse::<i16>() {
+            if let Ok(parsed_count) = count_value.parse::<usize>() {
                 fatass_count = parsed_count;
             } else {
                 eprintln!("{}", "Error: Invalid count value. Please provide a valid number.".red());
@@ -125,43 +128,46 @@ fn main() {
 
     // Count the number of file to check
     println!("{}", "Preparing ...".blue());
-    let mut max_files: u64 = 0;
-    for _entry in WalkDir::new(&search_path)
+
+    let walker = WalkDir::new(&search_path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| !e.file_type().is_dir())
         .filter(|e| e.metadata().map(|m| m.len()).unwrap_or(0) != 0)
-    {
-        max_files += 1;
-    }
-    let progress_bar = ProgressBar::new(max_files);
+        .collect::<Vec<_>>();
+    let total_files = walker.len() as u64;
+
+    let progress_bar = ProgressBar::new(total_files);
     progress_bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:50.cyan/blue} {pos:>7}/{len:7} {msg}")
         .unwrap()
         .progress_chars("##-"));
 
     // Create an array to store biggest files
-    let mut biggest_files: Vec<FileData> = Vec::with_capacity(fatass_count as usize);
+    let mut biggest_files: Vec<FileData> = Vec::with_capacity(fatass_count);
     let mut reordered = false;
-    for entry in WalkDir::new(&search_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| !e.file_type().is_dir())
-        .filter(|e| e.metadata().map(|m| m.len()).unwrap_or(0) != 0)
+    for entry in walker
     {
         let file_data = FileData::new(
             entry.path().display().to_string(),
             entry.metadata().map(|m| m.len()).unwrap_or(0) as i64
         );
 
-        if biggest_files.len() < fatass_count as usize {
+        if biggest_files.len() < fatass_count {
+            // We fill the vec its not to its capacity
             biggest_files.push(file_data);
-        } else if biggest_files.len() == fatass_count as usize && reordered == false {
+        } else if biggest_files.len() == fatass_count && reordered == false {
+            // We reorder the current files in the vector because its at its capacity and we need it sorted for binary search
             biggest_files.sort_by(|a, b| b.size.cmp(&a.size));
             reordered = true;
         } else  {
-            let index = reverse_binary_search_insert_index(&biggest_files, &file_data.size);
-            biggest_files.insert(index, file_data);
-            biggest_files.pop();
+            // We search where the current file should be in the vec, if none is return it means the current file is smaller than the smaller file in the vector
+            match reverse_binary_search_insert_index(&biggest_files, &file_data.size) {
+                Some(i) => {
+                    biggest_files.insert(i, file_data);
+                    biggest_files.pop();
+                },
+                _ => ()
+            }
         }
 
         progress_bar.inc(1);
