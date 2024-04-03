@@ -8,11 +8,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 #[derive(Debug, Clone)]
 struct FileData {
     path: String,
-    size: i64,
+    size: u64,
 }
 
 impl FileData {
-    fn new(path: String, size: i64) -> FileData {
+    fn new(path: String, size: u64) -> FileData {
         FileData { path, size }
     }
 
@@ -22,7 +22,7 @@ impl FileData {
 
         let units: [&str; 8] = ["KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
-        for unit in &units {
+        for unit in units {
             if size < 1024.0 {
                 break;
             }
@@ -56,7 +56,7 @@ fn print_help() {
     println!("  If the provided path or count value contains spaces, enclose it in quotes.");
 }
 
-fn reverse_binary_search_insert_index(arr: &[FileData], target_size: &i64) -> Option<usize> {
+fn reverse_binary_search_insert_index(arr: &[FileData], target_size: &u64) -> Option<usize> {
     let mut low = 0;
     let mut high = arr.len();
 
@@ -127,7 +127,7 @@ fn main() {
     }
 
     // Count the number of file to check
-    println!("{}", "Preparing ...".blue());
+    println!("{}", "Gathering files ...".blue());
 
     let walker = WalkDir::new(&search_path)
         .into_iter()
@@ -149,7 +149,7 @@ fn main() {
     {
         let file_data = FileData::new(
             entry.path().display().to_string(),
-            entry.metadata().map(|m| m.len()).unwrap_or(0) as i64
+            entry.metadata().map(|m| m.len()).unwrap_or(0) as u64
         );
 
         if biggest_files.len() < fatass_count {
@@ -161,12 +161,9 @@ fn main() {
             reordered = true;
         } else  {
             // We search where the current file should be in the vec, if none is return it means the current file is smaller than the smaller file in the vector
-            match reverse_binary_search_insert_index(&biggest_files, &file_data.size) {
-                Some(i) => {
-                    biggest_files.insert(i, file_data);
-                    biggest_files.pop();
-                },
-                _ => ()
+            if let Some(i) = reverse_binary_search_insert_index(&biggest_files, &file_data.size) {
+                biggest_files.insert(i, file_data);
+                biggest_files.pop();
             }
         }
 
