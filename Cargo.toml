@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 colored = "2.0.4"
 indicatif = "0.17.7"
+tabled = "0.15.0"
 walkdir = "2.4.0"
 
 [profile.dev]

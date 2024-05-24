@@ -4,6 +4,15 @@ use walkdir::WalkDir;
 use colored::Colorize;
 use std::time::Instant;
 use indicatif::{ProgressBar, ProgressStyle};
+use tabled::{
+    settings::{
+        object::{Columns, Rows}, Alignment, Style,
+        style::BorderColor,
+        themes::Colorization, Color
+    },
+    Tabled,
+    Table
+};
 
 #[derive(Debug, Clone)]
 struct FileData {
@@ -40,8 +49,22 @@ impl FileData {
     }
 }
 
+#[allow(non_snake_case)]
+#[derive(Tabled)]
+struct FileDataTable {
+    Path: String,
+    Size: String,
+}
+
+#[allow(non_snake_case)]
+impl FileDataTable {
+    fn new(Path: String, Size: String) -> FileDataTable {
+        FileDataTable { Path, Size }
+    }
+}
+
 fn print_help() {
-    println!("Usage: your_program [OPTIONS]");
+    println!("Usage: fatass [OPTIONS]");
 
     println!("\nOptions:");
     println!("  --help, -h           Show this help message and exit");
@@ -127,7 +150,7 @@ fn main() {
     }
 
     // Count the number of file to check
-    println!("{}", "Gathering files ...".blue());
+    println!("{}", "Gathering files ...".cyan());
 
     let walker = WalkDir::new(&search_path)
         .into_iter()
@@ -171,16 +194,23 @@ fn main() {
     }
     progress_bar.finish();
 
-    for file_data in biggest_files {
-        let path_str = format!("{}", file_data.path);
-        let size_str = format!("({})", file_data.get_str_size());
+    let tabled_files: Vec<FileDataTable> = biggest_files.iter().map(|file_data| {
+        FileDataTable::new(
+            file_data.path.clone(),
+            file_data.get_str_size()
+        )
+    }).collect();
 
-        let path_colored = path_str.green();
-        let size_colored = size_str.yellow();
+    let mut table = Table::new(&tabled_files);
+    table
+        .with(Style::rounded())
+        .with(BorderColor::filled(Color::FG_GREEN))
+        .with(Colorization::columns([Color::FG_CYAN, Color::FG_BRIGHT_RED]))
+        .with(Colorization::exact([Color::FG_GREEN], Rows::first()))
+        .modify(Columns::last(), Alignment::right());
 
-        println!("{} {}", path_colored, size_colored);
-    }
+    println!("{}", table.to_string());
 
-    let end_message = format!("Found the fattest {} files in {:?}", fatass_count, runtime_start.elapsed()).bright_cyan();
-    println!("\n{}", end_message);
+    let end_message = format!("Found the fattest {} files in {:?}", fatass_count, runtime_start.elapsed()).green();
+    println!("{}", end_message);
 }
